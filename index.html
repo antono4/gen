@@ -1,0 +1,522 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Animasi Gambar → Video (AI Ken Burns)</title>
+<style>
+  :root{
+    --bg:#0b0f17; --panel:#141a26; --panel2:#1b2333; --line:#27324a;
+    --text:#e6ecf5; --muted:#8a98b3; --accent:#6c8cff; --accent2:#9b6cff;
+    --ok:#3ecf8e; --warn:#ffb454; --err:#ff6b6b;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%}
+  body{background:radial-gradient(1200px 800px at 80% -10%,#1a2238 0%,var(--bg) 55%) 0/100% 100% no-repeat,var(--bg);
+    color:var(--text);font:14px/1.5 system-ui,-apple-system,Segoe UI,Roboto,Inter,Arial,sans-serif}
+  header{padding:18px 22px;display:flex;align-items:center;gap:14px;border-bottom:1px solid var(--line)}
+  header h1{font-size:18px;margin:0;font-weight:600}
+  header .sub{color:var(--muted);font-size:12.5px}
+  .badge{font-size:11px;padding:3px 9px;border-radius:999px;background:linear-gradient(90deg,var(--accent),var(--accent2));color:#fff;font-weight:600}
+  .layout{display:grid;grid-template-columns:1fr 360px;height:calc(100% - 59px)}
+  .col{overflow:auto}
+  .col.left{padding:18px}
+  .col.right{border-left:1px solid var(--line);background:var(--panel)}
+  .panel{background:var(--panel2);border:1px solid var(--line);border-radius:12px;padding:14px;margin-bottom:14px}
+  .panel h2{margin:0 0 10px;font-size:13px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted)}
+  label{display:block;color:var(--muted);font-size:12px;margin:9px 0 4px}
+  input[type=number],select,input[type=text]{width:100%;background:#0e1422;border:1px solid var(--line);color:var(--text);
+    border-radius:8px;padding:8px 10px;font:inherit}
+  input[type=range]{width:100%;accent-color:var(--accent)}
+  input[type=file]{display:none}
+  .row{display:grid;gap:8px}
+  .row.c2{grid-template-columns:1fr 1fr}
+  .row.c3{grid-template-columns:1fr 1fr 1fr}
+  .btn{appearance:none;border:1px solid var(--line);background:var(--panel2);color:var(--text);padding:9px 12px;border-radius:9px;
+    cursor:pointer;font:inherit;font-weight:500;transition:.15s}
+  .btn:hover{border-color:var(--accent)}
+  .btn.primary{background:linear-gradient(90deg,var(--accent),var(--accent2));border:none;color:#fff;font-weight:600}
+  .btn.primary:disabled{opacity:.5;cursor:not-allowed}
+  .btn.ghost{background:transparent}
+  .btn.danger{color:var(--err)}
+  .btn.small{padding:5px 9px;font-size:12px}
+  .drop{border:2px dashed var(--line);border-radius:12px;padding:26px;text-align:center;color:var(--muted);cursor:pointer;transition:.15s}
+  .drop:hover,.drop.drag{border-color:var(--accent);color:var(--text);background:#0e1422}
+  .hint{font-size:11.5px;color:var(--muted);margin-top:6px}
+
+  /* clips */
+  .clips{display:flex;flex-direction:column;gap:10px}
+  .clip{display:grid;grid-template-columns:84px 1fr auto;gap:12px;background:var(--panel2);border:1px solid var(--line);border-radius:10px;padding:10px}
+  .clip.active{border-color:var(--accent)}
+  .clip .thumb{width:84px;height:60px;object-fit:cover;border-radius:8px;background:#0e1422}
+  .clip .info{min-width:0}
+  .clip .info .name{font-size:12.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .clip .info .opts{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}
+  .chip{font-size:11px;background:#0e1422;border:1px solid var(--line);border-radius:7px;padding:3px 7px;color:var(--muted)}
+  .clip .ctrl{display:flex;flex-direction:column;gap:4px;align-items:end}
+  .x{color:var(--muted);cursor:pointer;border:none;background:none;font-size:16px;line-height:1}
+  .x:hover{color:var(--err)}
+
+  /* preview */
+  .stage{position:relative;width:100%;max-width:960px;margin:0 auto;background:#000;border-radius:12px;overflow:hidden;aspect-ratio:16/9;
+    box-shadow:0 10px 40px rgba(0,0,0,.5)}
+  .stage canvas{width:100%;height:100%;display:block}
+  .stage .caption{position:absolute;left:0;right:0;bottom:14px;text-align:center;padding:0 16px;color:#fff;
+    text-shadow:0 2px 6px rgba(0,0,0,.9);pointer-events:none;font-weight:600}
+  .timeline{display:flex;gap:2px;margin-top:10px;flex-wrap:wrap}
+  .tl{height:6px;background:var(--line);border-radius:3px;cursor:pointer;transition:.15s}
+  .tl.played{background:var(--accent)}
+  .transport{display:flex;gap:8px;align-items:center;justify-content:center;margin-top:12px}
+  .log{font-size:11.5px;color:var(--muted);font-family:ui-monospace,Menlo,Consolas,monospace;background:#0e1422;border:1px solid var(--line);
+    border-radius:8px;padding:10px;max-height:160px;overflow:auto;white-space:pre-wrap;margin-top:10px}
+  .progress{height:8px;background:#0e1422;border-radius:6px;overflow:hidden;border:1px solid var(--line)}
+  .progress>div{height:100%;width:0;background:linear-gradient(90deg,var(--accent),var(--accent2));transition:width .15s}
+  .result video{width:100%;border-radius:10px;background:#000}
+  .muted-none{display:none}
+  details summary{cursor:pointer;color:var(--muted);font-size:12px;margin:2px 0}
+</style>
+</head>
+<body>
+<header>
+  <h1>Animasi Gambar → Video</h1>
+  <span class="badge">Ken Burns · ffmpeg.wasm</span>
+  <span class="sub" style="margin-left:auto">100% di browser · tidak ada upload server</span>
+</header>
+<div class="layout">
+  <!-- LEFT: clips + preview -->
+  <div class="col left">
+    <div class="panel">
+      <h2>1. Tambah Gambar</h2>
+      <label class="drop" id="drop" for="file">
+        Seret &amp; lepas gambar di sini, atau klik untuk memilih<br>
+        <span style="font-size:12px">(PNG, JPG, WEBP — bisa banyak file)</span>
+      </label>
+      <input id="file" type="file" accept="image/*" multiple>
+      <div class="clips" id="clips" style="margin-top:14px"></div>
+    </div>
+
+    <div class="panel">
+      <h2>2. Pratinjau</h2>
+      <div class="stage"><canvas id="canvas"></canvas><div class="caption" id="capOverlay"></div></div>
+      <div class="timeline" id="timeline"></div>
+      <div class="transport">
+        <button class="btn small ghost" id="prev">◀</button>
+        <button class="btn primary small" id="play">▶ Mainkan</button>
+        <button class="btn small ghost" id="next">▶</button>
+        <span class="hint" id="ptime" style="margin-left:8px">00:00 / 00:00</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- RIGHT: editor + export -->
+  <div class="col right" style="padding:14px">
+    <div class="panel">
+      <h2>Klip Terpilih</h2>
+      <div id="clipEditor" class="muted-none">
+        <div class="row c2">
+          <div><label>Durasi (detik)</label><input id="dur" type="number" min="0.5" step="0.5" value="3"></div>
+          <div><label>Gerak</label>
+            <select id="motion">
+              <option value="none">Statis</option>
+              <option value="zin">Zoom In</option>
+              <option value="zout">Zoom Out</option>
+              <option value="pleft">Pan Kiri</option>
+              <option value="pright">Pan Kanan</option>
+              <option value="pup">Pan Atas</option>
+              <option value="pdown">Pan Bawah</option>
+            </select>
+          </div>
+        </div>
+        <div class="row c2">
+          <div><label>Transisi Masuk</label>
+            <select id="trans">
+              <option value="none">Tidak ada</option>
+              <option value="fade">Fade</option>
+              <option value="slideL">Geser Kiri</option>
+              <option value="slideR">Geser Kanan</option>
+              <option value="zoom">Zoom Pop</option>
+            </select>
+          </div>
+          <div><label>Durasi Transisi (dtk)</label><input id="transdur" type="number" min="0.2" max="2" step="0.1" value="0.6"></div>
+        </div>
+        <label>Teks / Caption</label>
+        <input id="cap" type="text" placeholder="Tulis caption (opsional)">
+        <div class="row c2">
+          <div><label>Ukuran Font</label><input id="capsize" type="number" min="10" max="120" value="34"></div>
+          <div><label>Warna</label><input id="capcolor" type="text" value="#ffffff"></div>
+        </div>
+        <div style="display:flex;gap:8px;margin-top:10px">
+          <button class="btn small" id="dup">⧉ Duplikat</button>
+          <button class="btn small danger" id="del">Hapus</button>
+        </div>
+      </div>
+      <div id="noClip" class="hint">Pilih atau tambahkan gambar dulu.</div>
+    </div>
+
+    <div class="panel">
+      <h2>Musik Latar (opsional)</h2>
+      <label class="drop" for="audio" style="padding:16px">Pilih file audio (MP3, WAV, M4A)</label>
+      <input id="audio" type="file" accept="audio/*">
+      <div id="audioInfo" class="hint muted-none" style="margin-top:8px"></div>
+      <label>Volume musik</label>
+      <input id="audioVol" type="range" min="0" max="1" step="0.05" value="0.6">
+      <div class="hint" id="audioVolVal">60%</div>
+    </div>
+
+    <div class="panel">
+      <h2>Output</h2>
+      <div class="row c2">
+        <div><label>Resolusi</label>
+          <select id="res">
+            <option value="640:360">360p (cepat)</option>
+            <option value="854:480" selected>480p</option>
+            <option value="1280:720">720p</option>
+            <option value="1920:1080">1080p (lambat)</option>
+          </select>
+        </div>
+        <div><label>FPS</label>
+          <select id="fps"><option>24</option><option selected>30</option><option>60</option></select>
+        </div>
+      </div>
+      <div class="row c2">
+        <div><label>Format</label>
+          <select id="fmt">
+            <option value="mp4" selected>MP4 (H.264)</option>
+            <option value="webm">WebM (VP9)</option>
+          </select>
+        </div>
+        <div><label>Aspek</label>
+          <select id="aspect">
+            <option value="16:9" selected>16:9</option>
+            <option value="9:16">9:16 (Reels/TikTok)</option>
+            <option value="1:1">1:1 (kotak)</option>
+          </select>
+        </div>
+      </div>
+      <button class="btn primary" id="render" style="width:100%;margin-top:12px">⚡ Render Video</button>
+      <div class="progress" style="margin-top:10px"><div id="pbar"></div></div>
+      <div class="hint" id="pstatus">Siap</div>
+    </div>
+
+    <div class="panel result" id="resultPanel" style="display:none">
+      <h2>Hasil</h2>
+      <video id="resultVideo" controls></video>
+      <a class="btn primary" id="download" style="display:block;text-align:center;margin-top:10px;text-decoration:none">⬇ Download</a>
+    </div>
+
+    <div class="log" id="log">Log siap.</div>
+  </div>
+</div>
+
+<script type="module">
+import { FFmpeg } from "https://unpkg.com/@ffmpeg/ffmpeg@0.12.10/dist/esm/index.js";
+import { fetchFile, toBlobURL } from "https://unpkg.com/@ffmpeg/util@0.12.1/dist/esm/index.js";
+
+const $ = id => document.getElementById(id);
+const log = (...a) => { const el=$('log'); el.textContent += "\n"+a.join(' ');
+  el.scrollTop=el.scrollHeight; console.log(...a); };
+log("Memuat ffmpeg.wasm…");
+
+// ---------- state ----------
+let clips = [];          // {id, file, img(HTMLImageElement), name, dur, motion, trans, transdur, cap, capsize, capcolor}
+let audio = null;        // {file, name}
+let selectedId = null;
+let ffmpeg = null;
+let playing=false, raf=0, startT=0;
+
+// ---------- helpers ----------
+const uid = () => Math.random().toString(36).slice(2,9);
+const fmtTime = s => { s=Math.max(0,s); const m=Math.floor(s/60), x=Math.floor(s%60); return String(m).padStart(2,'0')+':'+String(x).padStart(2,'0'); };
+
+function aspectWH(aspect, baseW){
+  const [aw,ah] = aspect.split(':').map(Number);
+  const h = Math.round(baseW*ah/aw/2)*2;
+  const w = Math.round(baseW*aw/ah*(h)/ah/2)*2; // keep within base
+  // simpler: derive from base width
+  const W = Math.round(baseW/2)*2;
+  const H = Math.round(W*ah/aw/2)*2;
+  return {W,H};
+}
+
+// ---------- file loading ----------
+function loadImage(file){
+  return new Promise((res,rej)=>{
+    const img=new Image();
+    img.onload=()=>res(img);
+    img.onerror=rej;
+    img.src=URL.createObjectURL(file);
+  });
+}
+
+async function addFiles(files){
+  for(const f of files){
+    if(!f.type.startsWith('image/')) continue;
+    try{
+      const img=await loadImage(f);
+      const c={id:uid(),file:f,img,dur:3,motion:'zin',trans:'fade',transdur:0.6,cap:'',capsize:34,capcolor:'#ffffff',name:f.name};
+      clips.push(c); selectedId=c.id;
+    }catch(e){ log("Gagal memuat",f.name,e); }
+  }
+  renderClips(); renderTimeline(); drawCurrent();
+}
+
+// ---------- UI: clips list ----------
+function renderClips(){
+  const el=$('clips'); el.innerHTML='';
+  if(!clips.length){ return; }
+  clips.forEach((c,i)=>{
+    const d=document.createElement('div'); d.className='clip'+(c.id===selectedId?' active':'');
+    d.innerHTML=`
+      <img class="thumb" src="${c.img.src}" alt="">
+      <div class="info">
+        <div class="name">${i+1}. ${c.name.replace(/</g,'&lt;')}</div>
+        <div class="opts">
+          <span class="chip">${c.dur}s</span>
+          <span class="chip">${c.motion}</span>
+          <span class="chip">↗${c.trans}</span>
+          ${c.cap?`<span class="chip">“…”</span>`:''}
+        </div>
+      </div>
+      <div class="ctrl">
+        <button class="x" title="Hapus">×</button>
+        <div style="display:flex;gap:4px">
+          <button class="btn small ghost" data-up title="Naik">↑</button>
+          <button class="btn small ghost" data-down title="Turun">↓</button>
+        </div>
+      </div>`;
+    d.onclick=ev=>{
+      if(ev.target.classList.contains('x')){ clips=clips.filter(x=>x.id!==c.id); if(selectedId===c.id) selectedId=clips[0]?.id||null; renderClips();renderTimeline();drawCurrent();syncEditor(); return; }
+      if(ev.target.dataset.up){ if(i>0){[clips[i-1],clips[i]]=[clips[i],clips[i-1]];selectedId=c.id;renderClips();renderTimeline();drawCurrent();syncEditor();} return; }
+      if(ev.target.dataset.down){ if(i<clips.length-1){[clips[i+1],clips[i]]=[clips[i],clips[i+1]];selectedId=c.id;renderClips();renderTimeline();drawCurrent();syncEditor();} return; }
+      selectedId=c.id; renderClips(); renderTimeline(); drawCurrent(); syncEditor();
+    };
+    el.appendChild(d);
+  });
+  syncEditor();
+}
+
+function renderTimeline(){
+  const el=$('timeline'); el.innerHTML='';
+  const total=clips.reduce((s,c)=>s+c.dur,0)||1;
+  clips.forEach(c=>{
+    const d=document.createElement('div'); d.className='tl';
+    d.style.width=(c.dur/total*100)+'%';
+    d.onclick=()=>{ selectedId=c.id; seekTo(totalStartBefore(c)); };
+    el.appendChild(d);
+  });
+}
+const totalStartBefore = id => clips.slice(0, clips.findIndex(c=>c.id===id)).reduce((s,c)=>s+c.dur,0);
+const totalDur = () => clips.reduce((s,c)=>s+c.dur,0);
+
+// ---------- editor sync ----------
+function syncEditor(){
+  const c=clips.find(x=>x.id===selectedId);
+  if(!c){ $('clipEditor').classList.add('muted-none'); $('noClip').classList.remove('muted-none'); return; }
+  $('clipEditor').classList.remove('muted-none'); $('noClip').classList.add('muted-none');
+  $('dur').value=c.dur; $('motion').value=c.motion; $('trans').value=c.trans; $('transdur').value=c.transdur;
+  $('cap').value=c.cap; $('capsize').value=c.capsize; $('capcolor').value=c.capcolor;
+}
+['dur','motion','trans','transdur','cap','capsize','capcolor'].forEach(k=>{
+  $(k).addEventListener('input',()=>{
+    const c=clips.find(x=>x.id===selectedId); if(!c)return;
+    const v=$(k).value; c[k]= (k==='dur'||k==='transdur'||k==='capsize')? +v : v;
+    renderClips(); renderTimeline(); drawCurrent();
+  });
+});
+$('dup').onclick=()=>{ const c=clips.find(x=>x.id===selectedId); if(!c)return; const n={...c,id:uid(),img:c.img,file:c.file}; clips.splice(clips.indexOf(c)+1,0,n); selectedId=n.id; renderClips();renderTimeline();drawCurrent();syncEditor(); };
+$('del').onclick=()=>{ clips=clips.filter(x=>x.id!==selectedId); selectedId=clips[0]?.id||null; renderClips();renderTimeline();drawCurrent();syncEditor(); };
+
+// ---------- canvas drawing (Ken Burns + transitions + captions) ----------
+const canvas=$('canvas'); const ctx=canvas.getContext('2d');
+function setCanvasSize(){
+  const {W,H}=aspectWH($('aspect').value,1280);
+  canvas.width=W; canvas.height=H;
+}
+$('aspect').addEventListener('change',()=>{ setCanvasSize(); drawCurrent(); });
+
+// draw a single clip frame at time t within clip duration, optionally blend-in with prev
+function drawClip(ctx, W, H, c, t, prev=null){
+  const ic=c.img, iw=ic.naturalWidth, ih=ic.naturalHeight;
+  // fit cover
+  const scale=Math.max(W/iw,H/ih);
+  let dw=iw*scale, dh=ih*scale;
+  // motion progress 0..1
+  const p = Math.min(1, Math.max(0, t/c.dur));
+  let zx=1, zy=1, ox=0, oy=0;
+  const k=0.12; // zoom/pan magnitude
+  switch(c.motion){
+    case 'zin': { const z=1+k*p; zx=z;zy=z; break; }
+    case 'zout': { const z=1+k*(1-p); zx=z;zy=z; break; }
+    case 'pleft': zx=zy=1+k*p*0.6; ox=-k*p*W*0.5; break;
+    case 'pright': zx=zy=1+k*p*0.6; ox=k*p*W*0.5; break;
+    case 'pup': zx=zy=1+k*p*0.6; oy=-k*p*H*0.5; break;
+    case 'pdown': zx=zy=1+k*p*0.6; oy=k*p*H*0.5; break;
+  }
+  const fw=dw*zx, fh=dh*zy;
+  const fx=(W-fw)/2+ox, fy=(H-fh)/2+oy;
+  ctx.fillStyle='#000'; ctx.fillRect(0,0,W,H);
+  ctx.drawImage(ic, fx,fy, fw, fh);
+  // transition IN over [0, transdur)
+  if(c.trans!=='none' && t<c.transdur && prev){
+    const a=Math.min(1,t/c.transdur);  // 0->1 progress of NEW clip
+    ctx.save();
+    if(c.trans==='fade'){
+      drawCover(ctx,W,H,prev.img); ctx.globalAlpha=a; drawCover(ctx,W,H,c.img);
+    } else if(c.trans==='slideL'){
+      const off=(1-a)*W; drawCover(ctx,W,H,prev.img,-off,0); drawCover(ctx,W,H,c.img,W-off,0);
+    } else if(c.trans==='slideR'){
+      const off=(1-a)*W; drawCover(ctx,W,H,prev.img,off,0); drawCover(ctx,W,H,c.img,off-W,0);
+    } else if(c.trans==='zoom'){
+      drawCover(ctx,W,H,prev.img); const z=0.8+0.2*a; ctx.globalAlpha=a; drawCover(ctx,W,H,c.img,W*z,H*z);
+    }
+    ctx.restore();
+  }
+  // caption
+  if(c.cap){
+    const fs=c.capsize*(W/1280);
+    ctx.font=`600 ${fs}px system-ui,Segoe UI,Arial,sans-serif`;
+    ctx.textAlign='center'; ctx.textBaseline='bottom';
+    ctx.fillStyle=c.capcolor; ctx.shadowColor='rgba(0,0,0,.9)'; ctx.shadowBlur=8; ctx.shadowOffsetY=2;
+    ctx.fillText(c.cap, W/2, H-fs*0.6);
+    ctx.shadowBlur=0;
+  }
+}
+function drawCover(ctx,W,H,img,ox=0,oy=0){
+  const iw=img.naturalWidth,ih=img.naturalHeight,sc=Math.max(W/iw,H/ih);
+  const dw=iw*sc,dh=ih*sc; ctx.drawImage(img,(W-dw)/2+ox,(H-dh)/2+oy,dw,dh);
+}
+
+// redraw preview using selected clip at t=0 (static poster)
+function drawCurrent(){
+  setCanvasSize();
+  const c=clips.find(x=>x.id===selectedId);
+  if(!c){ ctx.fillStyle='#0b0f17';ctx.fillRect(0,0,canvas.width,canvas.height); $('capOverlay').textContent=''; return; }
+  drawClip(ctx, canvas.width, canvas.height, c, 0, null);
+}
+
+// ---------- playback ----------
+function findAt(t){
+  let acc=0;
+  for(let i=0;i<clips.length;i++){ const c=clips[i];
+    if(t<acc+c.dur) return {c,i,local:t-acc,prev:clips[i-1]||null};
+    acc+=c.dur;
+  }
+  return null;
+}
+function loop(){
+  const t=(performance.now()-startT)/1000;
+  const T=totalDur();
+  const lc=clips[clips.length-1];
+  if(t>=T){ stop(); drawClip(ctx,canvas.width,canvas.height,lc,lc.dur,clips[clips.length-2]||null); updateTL(T); $('ptime').textContent=`${fmtTime(T)} / ${fmtTime(T)}`; return; }
+  const {c,local,prev}=findAt(t);
+  if(c) drawClip(ctx,canvas.width,canvas.height,c,local,prev);
+  updateTL(t);
+  $('ptime').textContent=`${fmtTime(t)} / ${fmtTime(T)}`;
+  raf=requestAnimationFrame(loop);
+}
+function updateTL(t){
+  const tls=[...$('timeline').children]; let acc=0;
+  clips.forEach((c,i)=>{ if(tls[i]) tls[i].classList.toggle('played', t>=acc+c.dur); acc+=c.dur; });
+}
+function play(){
+  if(!clips.length)return; if(playing){stop();return;}
+  playing=true; $('play').textContent='⏸ Jeda'; startT=performance.now();
+  raf=requestAnimationFrame(loop);
+}
+function stop(){ playing=false; $('play').textContent='▶ Mainkan'; if(raf)cancelAnimationFrame(raf); }
+function seekTo(t){
+  stop(); startT=performance.now()-t*1000;
+  const f=findAt(t); if(f) drawClip(ctx,canvas.width,canvas.height,f.c,f.local,f.prev);
+  $('ptime').textContent=`${fmtTime(t)} / ${fmtTime(totalDur())}`;
+}
+$('play').onclick=play;
+$('prev').onclick=()=>{ const i=clips.findIndex(c=>c.id===selectedId); if(i>0){selectedId=clips[i-1].id;seekTo(totalStartBefore(selectedId));syncEditor();renderClips();} };
+$('next').onclick=()=>{ const i=clips.findIndex(c=>c.id===selectedId); if(i<clips.length-1){selectedId=clips[i+1].id;seekTo(totalStartBefore(selectedId));syncEditor();renderClips();} };
+
+// ---------- file inputs ----------
+$('file').addEventListener('change',e=>addFiles([...e.target.files]));
+$('drop').addEventListener('dragover',e=>{e.preventDefault();e.currentTarget.classList.add('drag')});
+$('drop').addEventListener('dragleave',e=>e.currentTarget.classList.remove('drag'));
+$('drop').addEventListener('drop',e=>{e.preventDefault();e.currentTarget.classList.remove('drag');addFiles([...e.dataTransfer.files])});
+
+$('audio').addEventListener('change',e=>{
+  const f=e.target.files[0]; if(!f)return;
+  audio={file:f,name:f.name}; $('audioInfo').textContent='🎵 '+f.name; $('audioInfo').classList.remove('muted-none');
+});
+$('audioVol').addEventListener('input',e=>$('audioVolVal').textContent=Math.round(e.target.value*100)+'%');
+
+// ---------- render with ffmpeg.wasm ----------
+async function ensureFFmpeg(){
+  if(ffmpeg && ffmpeg.loaded) return ffmpeg;
+  ffmpeg=new FFmpeg();
+  const base='https://unpkg.com/@ffmpeg/core@0.12.6/dist/umd';
+  ffmpeg.on('log',({message})=>log(message));
+  await ffmpeg.load({
+    coreURL: await toBlobURL(`${base}/ffmpeg-core.js`,'text/javascript'),
+    wasmURL: await toBlobURL(`${base}/ffmpeg-core.wasm`,'application/wasm'),
+  });
+  return ffmpeg;
+}
+
+// render frames to offscreen canvas at target res, feed to ffmpeg
+$('render').onclick=async ()=>{
+  if(!clips.length){ log('Tidak ada gambar.'); return; }
+  $('render').disabled=true; $('pstatus').textContent='Memuat ffmpeg…';
+  try{
+    const ff=await ensureFFmpeg();
+    const [W,H]= $('res').value.split(':').map(Number);
+    const fps=+$('fps').value;
+    const fmt=$('fmt').value;
+    const off=document.createElement('canvas'); off.width=W; off.height=H;
+    const octx=off.getContext('2d');
+    const total=totalDur();
+    const frames=Math.round(total*fps);
+    $('pstatus').textContent=`Merender ${frames} frame…`;
+    for(let i=0;i<frames;i++){
+      const t=i/fps;
+      const {c,local,prev}=findAt(t);
+      drawClip(octx, W, H, c, local, prev);
+      const blob=await new Promise(r=>off.toBlob(r,'image/png'));
+      const buf=await fetchFile(blob);
+      ff.writeFile(`f${String(i).padStart(6,'0')}.png`, buf);
+      $('pbar').style.width=((i+1)/frames*100)+'%';
+      if(i%5===0) $('pstatus').textContent=`Frame ${i+1}/${frames}`;
+    }
+    log(`Menulis selesai. Menyusun video ${fmt}…`);
+
+    // build ffmpeg command
+    const outName='out.'+fmt;
+    let args=['-framerate',String(fps),'-i','f%06d.png'];
+    if(audio){
+      await ff.writeFile('a.'+audio.name.split('.').pop(), await fetchFile(audio.file));
+      args.push('-i','a.'+audio.name.split('.').pop());
+    }
+    if(fmt==='mp4'){
+      args.push('-c:v','libx264','-pix_fmt','yuv420p','-preset','veryfast','-crf','23');
+      if(audio) args.push('-c:a','aac','-af', `volume=${$('audioVol').value}`,'-shortest');
+    } else {
+      args.push('-c:v','libvpx-vp9','-pix_fmt','yuv420p','-b:v','1.4M','-deadline','realtime','-cpu-used','8');
+      if(audio) args.push('-c:a','libopus','-af', `volume=${$('audioVol').value}`,'-shortest');
+    }
+    args.push('-movflags','+faststart', outName);
+    await ff.exec(args);
+    const data=await ff.readFile(outName);
+    const blobUrl=URL.createObjectURL(new Blob([data.buffer],{type:fmt==='mp4'?'video/mp4':'video/webm'}));
+    $('resultVideo').src=blobUrl; $('download').href=blobUrl;
+    $('download').download='animasi.'+fmt;
+    $('resultPanel').style.display='';
+    $('pstatus').textContent='Selesai ✓';
+    log('Selesai.');
+    // free per-frame PNGs from MEMFS
+    try{ for(let i=0;i<frames;i++) ff.deleteFile(`f${String(i).padStart(6,'0')}.png`); ff.deleteFile(outName); }catch(_){}
+  }catch(e){
+    console.error(e); log('ERROR:',e?.message||e); $('pstatus').textContent='Gagal (lihat log)';
+  }finally{ $('render').disabled=false; }
+};
+
+// init
+setCanvasSize(); drawCurrent();
+log('Siap. Tambahkan gambar untuk mulai.');
+</script>
+</body>
+</html>
